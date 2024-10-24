@@ -14,8 +14,7 @@ const UserModel = require('./models/Users');
 
 // Connect to MongoDB
 mongoose.connect(
-  `mongodb+srv://${name}:${password}@cluster0.moa2f.mongodb.net/${database}?retryWrites=true&w=majority`,
-  { useNewUrlParser: true, useUnifiedTopology: true }
+  `mongodb+srv://${name}:${password}@cluster0.moa2f.mongodb.net/${database}?retryWrites=true&w=majority`
 ).then(() => console.log("Connected to MongoDB"))
   .catch((err) => console.error("Error connecting to MongoDB:", err));
 //set port
