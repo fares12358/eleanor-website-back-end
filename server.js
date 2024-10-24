@@ -25,24 +25,24 @@ app.get('/', (req, res) => {
 });
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // create acc
-
 app.post('/CreateUser', async (req, res) => {
   try {
-    const { username, password } = req.body; // Get from request body
+    const { username, password, name, email } = req.body; // Get data from the request body
 
     // Check if username already exists
-    const findUser = await UserModel.findOne({ username: username }); // Use findOne to check for existence
+    const findUser = await UserModel.findOne({ username: username }); // Query database for the username
 
     if (findUser) {
-      return res.status(400).json({ message: 'Username already exists' }); // Updated error message
+      return res.status(400).json({ message: 'Username already exists' }); // Send error if username is taken
     }
 
-    const newUser = new UserModel({ username, password });
-    await newUser.save();
+    // If username doesn't exist, create a new user
+    const newUser = new UserModel({ username, password, name, email });
+    await newUser.save(); // Save the new user in the database
 
-    res.status(201).send('Registered successfully!'); // Corrected spelling and message
+    res.status(201).send({ message: 'Registered successfully!' }); // Success response
   } catch (err) {
-    res.status(500).send({ message: 'Error registering', error: err }); // Corrected spelling and message
+    res.status(500).send({ message: 'Error registering', error: err.message }); // Handle error with status and message
   }
 });
 
@@ -54,15 +54,15 @@ app.post('/login', async (req, res) => {
     const findUser = await UserModel.findOne({ username: name }); // Use findOne to check for existence
 
     if (!findUser) {
-      return res.status(400).send({ message: 'Username not exists' }); // Updated error message
+      return res.status(400).json({ message: 'Wrong username or password' }); // Updated error message
     }
     if (pass === findUser.password) {
       res.status(200).json(findUser._id);
     } else {
-      return res.status(400).json({ message: 'Wrong email or password' });
+      return res.status(400).send({ message: 'Wrong username or password' });
     }
   } catch (err) {
-    res.status(500).send({ message: 'Error login', error: err }); // Corrected spelling and message
+    res.status(500).json({ message: 'Error login'}); // Corrected spelling and message
   }
 })
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -80,17 +80,20 @@ app.get("/users", async (req, res) => {
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 app.post('/getPass', async (req, res) => {
   try {
-    const { name } = req.body;
-    const findUser = await UserModel.findOne({ username: name });
+    const { name } = req.body; // Get username from request body
+    const findUser = await UserModel.findOne({ username: name }); // Find user by username
 
     if (!findUser) {
-      return res.status(400).send({ message: 'Username does not exist' });
+      return res.status(400).json({ success: false, message: 'Username does not exist' }); // Return error with success: false
     }
-    res.status(200).json(findUser.password);
+
+    res.status(200).json({ success: true, password: findUser.password }); // Return success with password
   } catch (err) {
-    res.status(500).send({ message: 'Internal server error', error: err });
+    console.error('Error fetching password:', err); // Log the error for debugging
+    res.status(500).json({ success: false, message: 'Internal server error', error: err.message }); // Return error with success: false
   }
 });
+
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
