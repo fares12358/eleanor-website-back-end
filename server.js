@@ -6,6 +6,7 @@ app.use(cors());
 app.use(express.json());
 
 
+
 //connect db
 const name = process.env.NAME;
 const password = process.env.PASSWORD;
@@ -195,7 +196,7 @@ require('dotenv').config();
 const multer = require("multer");
 const path = require("path");
 const admin = require("firebase-admin");
-
+const sharp = require("sharp");
 // Define the service account object directly in the code
 const serviceAccount = {
   type: "service_account",
@@ -241,13 +242,14 @@ app.post("/uploadImage/:id/:catKey", upload.single("image"), async (req, res) =>
       return res.status(400).json({ message: "No file uploaded" });
     }
 
-    const fileName = `images/${Date.now()}_${req.file.originalname}`;
+    const convertedBuffer = await sharp(req.file.buffer).webp().toBuffer();
+     const fileName = `images/${Date.now()}_${path.parse(req.file.originalname).name}.webp`;
     const file = bucket.file(fileName);
 
     // Create a stream to upload the file to Firebase Storage
     const blobStream = file.createWriteStream({
       metadata: {
-        contentType: req.file.mimetype,
+        contentType: 'image/webp',
       },
     });
 
