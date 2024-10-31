@@ -4,17 +4,12 @@ const app = express();
 const cors = require('cors');
 app.use(cors());
 app.use(express.json());
-
-
-
 //connect db
 const name = process.env.NAME;
 const password = process.env.PASSWORD;
 const database = process.env.DB_NAME;
-
 const mongoose = require("mongoose");
 const UserModel = require('./models/Users');
-
 // Connect to MongoDB
 mongoose.connect(
   `mongodb+srv://${name}:${password}@cluster0.moa2f.mongodb.net/${database}?retryWrites=true&w=majority`
@@ -22,8 +17,6 @@ mongoose.connect(
   .catch((err) => console.error("Error connecting to MongoDB:", err));
 //set port
 const PORT = process.env.PORT;
-
-
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 app.get('/', (req, res) => {
   res.json({ message: "hi in eleanor back end" });
@@ -50,7 +43,6 @@ app.post('/CreateUser', async (req, res) => {
     res.status(500).send({ message: 'Error registering', error: err.message }); // Handle error with status and message
   }
 });
-
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // log in
 app.post('/login', async (req, res) => {
@@ -107,7 +99,6 @@ app.post('/getPass', async (req, res) => {
   }
 });
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
 app.post('/getCat', async (req, res) => {
   try {
     const { id } = req.body; // Get username from request body
@@ -123,7 +114,6 @@ app.post('/getCat', async (req, res) => {
   }
 });
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
 app.post('/getItems', async (req, res) => {
   try {
     const { id, catKey } = req.body; // Get user ID and category key from request body
@@ -146,8 +136,6 @@ app.post('/getItems', async (req, res) => {
     res.status(500).json({ success: false, message: 'Internal server error', error: err.message }); // Return error with success: false
   }
 });
-
-
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 app.post('/addCategory', async (req, res) => {
   try {
@@ -182,12 +170,28 @@ app.post('/addCategory', async (req, res) => {
   }
 });
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// app.post('/deleteItem', async (req, res) => {
+//   try {
+//     const { id, catName, url } = req.body;
+
+//     const result = await UserModel.updateOne(
+//       { _id: id, [`category.${catName}`]: url },
+//       { $pull: { [`category.${catName}`]: url } }
+//     );
+
+//     if (result.modifiedCount === 0) {
+//       return res.status(404).json({ success: false, message: "User, category, or URL not found" });
+//     }
+
+//     res.status(200).json({ success: true, message: "Item deleted successfully" });
+//   } catch (error) {
+//     console.error("Error deleting item:", error);
+//     res.status(500).json({ success: false, message: "Internal server error" });
+//   }
+// });
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 app.use('/uploads', express.static('uploads'));
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
 require('dotenv').config();
 const multer = require("multer");
 const path = require("path");
@@ -206,16 +210,12 @@ const serviceAccount = {
   auth_provider_x509_cert_url: "https://www.googleapis.com/oauth2/v1/certs",
   client_x509_cert_url: "https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-r3ape%40eleanor-3aa19.iam.gserviceaccount.com",
 };
-
 // Initialize Firebase Admin SDK
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
   storageBucket: "eleanor-3aa19.appspot.com",
 });
-
-
 const bucket = admin.storage().bucket();
-
 // Initialize multer memory storage (to store files in memory)
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -227,7 +227,6 @@ const upload = multer({
     }
   },
 });
-
 // Add image to a specific user by ID
 app.post("/uploadImage/:id/:catKey", upload.single("image"), async (req, res) => {
   try {
@@ -272,14 +271,37 @@ app.post("/uploadImage/:id/:catKey", upload.single("image"), async (req, res) =>
     res.status(500).json({ message: "Error uploading image", error: err.message });
   }
 });
-
-
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+app.post('/deleteItem', async (req, res) => {
+  try {
+    const { id, catName, url } = req.body;
+
+    // Remove the URL from the MongoDB document
+    const result = await UserModel.updateOne(
+      { _id: id, [`category.${catName}`]: url },
+      { $pull: { [`category.${catName}`]: url } }
+    );
+
+    if (result.modifiedCount === 0) {
+      return res.status(404).json({ success: false, message: "User, category, or URL not found" });
+    }
+
+    // Extract the file name from the URL correctly
+    const fileName = url.split('/').pop().split('?')[0]; // Just the file name
+
+    // The correct path should match how you uploaded the file
+    const filePath = `images/${fileName}`; // Use the same path as during upload
+
+    // Attempt to delete the file from Firebase Storage
+    await bucket.file(filePath).delete();
+
+    res.status(200).json({ success: true, message: "Item deleted successfully from both MongoDB and Firebase Storage" });
+  } catch (error) {
+    console.error("Error deleting item from Firebase:", error);
+    res.status(500).json({ success: false, message: "Internal server error", error: error.message });
+  }
+});
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-
-
 // Start the server only after the DB connection is successful
 app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
