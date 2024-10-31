@@ -103,7 +103,6 @@ app.post('/getPass', async (req, res) => {
 
     res.status(200).json({ success: true, password: findUser.password }); // Return success with password
   } catch (err) {
-    console.error('Error fetching password:', err); // Log the error for debugging
     res.status(500).json({ success: false, message: 'Internal server error', error: err.message }); // Return error with success: false
   }
 });
@@ -120,7 +119,6 @@ app.post('/getCat', async (req, res) => {
     const categoryKeys = Object.keys(findUser.category);
     res.status(200).json({ success: true, cat: categoryKeys }); // Return success with password
   } catch (err) {
-    console.error('Error fetching password:', err); // Log the error for debugging
     res.status(500).json({ success: false, message: 'Internal server error', error: err.message }); // Return error with success: false
   }
 });
@@ -145,7 +143,6 @@ app.post('/getItems', async (req, res) => {
     // If items exist, return them
     res.status(200).json({ success: true, items }); // Return success with items
   } catch (err) {
-    console.error('Error fetching items:', err); // Log the error for debugging
     res.status(500).json({ success: false, message: 'Internal server error', error: err.message }); // Return error with success: false
   }
 });
@@ -181,7 +178,6 @@ app.post('/addCategory', async (req, res) => {
 
     res.status(200).json({ success: true, message: "Category added successfully", user: updatedUser });
   } catch (error) {
-    console.error("Error adding category:", error);
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
