@@ -170,25 +170,6 @@ app.post('/addCategory', async (req, res) => {
   }
 });
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// app.post('/deleteItem', async (req, res) => {
-//   try {
-//     const { id, catName, url } = req.body;
-
-//     const result = await UserModel.updateOne(
-//       { _id: id, [`category.${catName}`]: url },
-//       { $pull: { [`category.${catName}`]: url } }
-//     );
-
-//     if (result.modifiedCount === 0) {
-//       return res.status(404).json({ success: false, message: "User, category, or URL not found" });
-//     }
-
-//     res.status(200).json({ success: true, message: "Item deleted successfully" });
-//   } catch (error) {
-//     console.error("Error deleting item:", error);
-//     res.status(500).json({ success: false, message: "Internal server error" });
-//   }
-// });
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 app.use('/uploads', express.static('uploads'));
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -299,6 +280,79 @@ app.post('/deleteItem', async (req, res) => {
   } catch (error) {
     console.error("Error deleting item from Firebase:", error);
     res.status(500).json({ success: false, message: "Internal server error", error: error.message });
+  }
+});
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+app.post('/AddUsedItem', async (req, res) => {
+  try {
+    const { id, topUrl, btmUrl, dateUse } = req.body;
+
+    // Find the user by ID
+    const user = await UserModel.findById(id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    // Create a new used item array
+    const newItem = [topUrl, btmUrl, dateUse];
+    user.Used = user.Used || []; // Ensure 'Used' exists
+    user.Used.push(newItem); // Add the new item to the Used array
+
+    // Check if categories exist and update accordingly
+    if (user.category && typeof user.category === 'object') {
+      for (const key in user.category) {
+        if (Array.isArray(user.category[key])) {
+          // Remove topUrl if it exists in the category array
+          const topUrlIndex = user.category[key].indexOf(topUrl);
+          if (topUrlIndex > -1) {
+            await UserModel.updateOne(
+              { _id: id },
+              { $pull: { [`category.${key}`]: topUrl } } // Correctly use $pull with the value
+            );
+          }
+          // Remove btmUrl if it exists in the category array
+          const btmUrlIndex = user.category[key].indexOf(btmUrl);
+          if (btmUrlIndex > -1) {
+            await UserModel.updateOne(
+              { _id: id },
+              { $pull: { [`category.${key}`]: btmUrl } } // Correctly use $pull with the value
+            );
+          }
+        }
+      }
+    }
+
+    // Save the updated user document
+    await user.save();
+
+    // Respond with a success message
+    res.status(200).json({ success: true, message: "Item added successfully" });
+  } catch (error) {
+    console.error("Error adding item to favorites:", error);
+    res.status(500).json({ success: false, message: "Internal server error", error: error.message });
+  }
+});
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+app.post('/GetUsedItem', async (req, res) => {
+  try {
+    const { id } = req.body; // Get user ID from request body
+    const findUser = await UserModel.findOne({ _id: id }); // Find user by ID
+
+    if (!findUser) {
+      return res.status(400).json({ success: false, message: 'User does not exist' }); // Return error if user not found
+    }
+
+    // Assuming Used is an array or object property in findUser
+    const items = findUser.Used;
+
+    if (!items || items.length === 0) { // Check if items exist and are not empty
+      return res.status(404).json({ success: false, message: 'No items found for this category' }); // Return error if no items found
+    }
+
+    // If items exist, return them
+    res.status(200).json({ success: true, items }); // Return success with items
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Internal server error', error: err.message }); // Return error with success: false
   }
 });
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
