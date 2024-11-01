@@ -178,6 +178,7 @@ const multer = require("multer");
 const path = require("path");
 const admin = require("firebase-admin");
 const sharp = require("sharp");
+const { log } = require("console");
 // Define the service account object directly in the code
 const serviceAccount = {
   type: "service_account",
@@ -345,7 +346,7 @@ app.post('/GetUsedItem', async (req, res) => {
     // Assuming Used is an array or object property in findUser
     const items = findUser.Used;
 
-    if (!items || items.length === 0) { // Check if items exist and are not empty
+    if (!items) { // Check if items exist and are not empty
       return res.status(404).json({ success: false, message: 'No items found for this category' }); // Return error if no items found
     }
 
@@ -355,6 +356,28 @@ app.post('/GetUsedItem', async (req, res) => {
     res.status(500).json({ success: false, message: 'Internal server error', error: err.message }); // Return error with success: false
   }
 });
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+app.post('/deleteUsedItem', async (req, res) => {
+  try {
+    const { id, topUrl, btmUrl } = req.body;
+
+    const user = await UserModel.findOne({ _id: id });
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    // Filter out the item in `Used` that matches topUrl and btmUrl
+    user.Used = user.Used.filter(item => !(item[0] === topUrl && item[1] === btmUrl));
+
+    // Save the updated document back to the database
+    await user.save();
+    res.status(200).json({ success: true, message: "Item deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting item:", error);
+    res.status(500).json({ success: false, message: "Internal server error", error: error.message });
+  }
+});
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Start the server only after the DB connection is successful
 app.listen(PORT, () => {
