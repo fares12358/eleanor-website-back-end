@@ -99,24 +99,66 @@ app.post('/getPass', async (req, res) => {
   }
 });
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+app.post('/addCategory', async (req, res) => {
+  try {
+    const { id, catName, selectedOption } = req.body;
+    // Find user by ID
+    const userExists = await UserModel.findById(id);
+    if (!userExists) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+    // Check if category already exists
+    const categoryExists = userExists.category.some(category => category.name === catName);
+    if (categoryExists) {
+      return res.status(400).json({ success: false, message: "Category already exists" });
+    }
+    // Create the category object
+    const categoryObject = {
+      name: catName,
+      type: selectedOption,
+      urls: []
+    };
+    const updateObject = {
+      $push: { category: categoryObject }
+    };
+    const updatedUser = await UserModel.findByIdAndUpdate(id, updateObject, { new: true });
+    res.status(200).json({ success: true, message: "Category added successfully", user: updatedUser });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 app.post('/getCat', async (req, res) => {
   try {
-    const { id } = req.body; // Get username from request body
-    const findUser = await UserModel.findOne({ _id: id }); // Find user by username
+    const { id } = req.body; // Get user ID from request body
+    const findUser = await UserModel.findOne({ _id: id }); // Find user by ID
 
     if (!findUser) {
-      return res.status(400).json({ success: false, message: 'Username does not exist' }); // Return error with success: false
+      return res.status(400).json({ success: false, message: 'User does not exist' }); // Return error if user not found
     }
-    const categoryKeys = Object.keys(findUser.category);
-    res.status(200).json({ success: true, cat: categoryKeys }); // Return success with password
+
+    // Create an array of category objects with index and name
+    const categoriesWithIndex = findUser.category.map((category, index) => ({
+      ref: index,
+      name: category.name
+    }));
+
+    res.status(200).json({ success: true, categories: categoriesWithIndex }); // Return success with category names and their indexes
   } catch (err) {
     res.status(500).json({ success: false, message: 'Internal server error', error: err.message }); // Return error with success: false
   }
 });
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 app.post('/getItems', async (req, res) => {
   try {
-    const { id, catKey } = req.body; // Get user ID and category key from request body
+    const { id, CatRef } = req.body; // Get user ID and category key from request body
     const findUser = await UserModel.findOne({ _id: id }); // Find user by ID
 
     if (!findUser) {
@@ -124,7 +166,7 @@ app.post('/getItems', async (req, res) => {
     }
 
     // Dynamically access the category using the catKey
-    const items = findUser.category[catKey];
+    const items = findUser.category[CatRef];
 
     if (!items) {
       return res.status(404).json({ success: false, message: 'No items found for this category' }); // Return error if category does not exist
@@ -137,40 +179,7 @@ app.post('/getItems', async (req, res) => {
   }
 });
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-app.post('/addCategory', async (req, res) => {
-  try {
-    const { id, catName } = req.body;
 
-    // Check for missing fields
-    if (!id || !catName) {
-      return res.status(400).json({ success: false, message: "ID and category name are required" });
-    }
-
-    // Find user by ID
-    const userExists = await UserModel.findById(id);
-    if (!userExists) {
-      return res.status(404).json({ success: false, message: "User not found" });
-    }
-
-    // Check if category already exists
-    if (userExists.category && userExists.category[catName]) {
-      return res.status(400).json({ success: false, message: "Category already exists" });
-    }
-
-    // Update category with new empty array for the category name
-    const updateObject = {
-      $set: { [`category.${catName}`]: [] }
-    };
-
-    const updatedUser = await UserModel.findByIdAndUpdate(id, updateObject, { new: true });
-
-    res.status(200).json({ success: true, message: "Category added successfully", user: updatedUser });
-  } catch (error) {
-    res.status(500).json({ success: false, message: "Internal server error" });
-  }
-});
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 app.use('/uploads', express.static('uploads'));
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 require('dotenv').config();
@@ -210,17 +219,17 @@ const upload = multer({
   },
 });
 // Add image to a specific user by ID
-app.post("/uploadImage/:id/:catKey", upload.single("image"), async (req, res) => {
+app.post("/uploadImage/:id/:catRef", upload.single("image"), async (req, res) => {
   try {
     const userId = req.params.id;
-    const catKey = req.params.catKey;
+    const catRef = req.params.catRef;
 
     if (!req.file) {
       return res.status(400).json({ message: "No file uploaded" });
     }
 
     const convertedBuffer = await sharp(req.file.buffer).webp().toBuffer();
-     const fileName = `images/${Date.now()}_${path.parse(req.file.originalname).name}.webp`;
+    const fileName = `images/${Date.now()}_${path.parse(req.file.originalname).name}.webp`;
     const file = bucket.file(fileName);
 
     // Create a stream to upload the file to Firebase Storage
@@ -239,7 +248,13 @@ app.post("/uploadImage/:id/:catKey", upload.single("image"), async (req, res) =>
       const publicUrl = `https://storage.googleapis.com/${bucket.name}/${file.name}`;
 
       // Update the user's category with the new image URL
-      const update = { $push: { [`category.${catKey}`]: publicUrl } };
+      const currentDate = new Date();
+
+      const update = {
+        $push: {
+          [`category.${catRef}.urls`]: { url: publicUrl, date: currentDate, usedTime: 0 },
+        },
+      };
       const updatedUser = await UserModel.findByIdAndUpdate(userId, update, { new: true });
 
       if (!updatedUser) {
@@ -254,18 +269,31 @@ app.post("/uploadImage/:id/:catKey", upload.single("image"), async (req, res) =>
   }
 });
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 app.post('/deleteItem', async (req, res) => {
   try {
-    const { id, catName, url } = req.body;
+    const { id, itemIndex, catIndex } = req.body;
 
-    // Remove the URL from the MongoDB document
+    // Fetch the user document to locate the exact URL to delete
+    const userDoc = await UserModel.findById(id);
+
+    // Check if the category and URL object exist
+    if (!userDoc || !userDoc.category[catIndex] || !userDoc.category[catIndex].urls[itemIndex]) {
+      return res.status(404).json({ success: false, message: "User, category, or URL not found" });
+    }
+
+    // Extract the URL to be deleted
+    const urlObj = userDoc.category[catIndex].urls[itemIndex];
+    const url = urlObj.url;
+
+    // Remove the item from the MongoDB document at the specified indexes
     const result = await UserModel.updateOne(
-      { _id: id, [`category.${catName}`]: url },
-      { $pull: { [`category.${catName}`]: url } }
+      { _id: id },
+      { $pull: { [`category.${catIndex}.urls`]: urlObj } }
     );
 
     if (result.modifiedCount === 0) {
-      return res.status(404).json({ success: false, message: "User, category, or URL not found" });
+      return res.status(404).json({ success: false, message: "Failed to delete item from MongoDB" });
     }
 
     // Extract the file name from the URL correctly
@@ -275,7 +303,8 @@ app.post('/deleteItem', async (req, res) => {
     const filePath = `images/${fileName}`; // Use the same path as during upload
 
     // Attempt to delete the file from Firebase Storage
-    await bucket.file(filePath).delete();
+    const file = bucket.file(filePath);
+    await file.delete();
 
     res.status(200).json({ success: true, message: "Item deleted successfully from both MongoDB and Firebase Storage" });
   } catch (error) {
@@ -284,47 +313,18 @@ app.post('/deleteItem', async (req, res) => {
   }
 });
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 app.post('/AddUsedItem', async (req, res) => {
   try {
-    const { id, topUrl, btmUrl, dateUse } = req.body;
-
+    const { id, topItem, bottomItem } = req.body;
     // Find the user by ID
     const user = await UserModel.findById(id);
     if (!user) {
       return res.status(404).json({ success: false, message: "User not found" });
     }
 
-    // Create a new used item array
-    const newItem = [topUrl, btmUrl, dateUse];
-    user.Used = user.Used || []; // Ensure 'Used' exists
-    user.Used.push(newItem); // Add the new item to the Used array
+    user.Used = user.Used || []; 
 
-    // Check if categories exist and update accordingly
-    if (user.category && typeof user.category === 'object') {
-      for (const key in user.category) {
-        if (Array.isArray(user.category[key])) {
-          // Remove topUrl if it exists in the category array
-          const topUrlIndex = user.category[key].indexOf(topUrl);
-          if (topUrlIndex > -1) {
-            await UserModel.updateOne(
-              { _id: id },
-              { $pull: { [`category.${key}`]: topUrl } } // Correctly use $pull with the value
-            );
-          }
-          // Remove btmUrl if it exists in the category array
-          const btmUrlIndex = user.category[key].indexOf(btmUrl);
-          if (btmUrlIndex > -1) {
-            await UserModel.updateOne(
-              { _id: id },
-              { $pull: { [`category.${key}`]: btmUrl } } // Correctly use $pull with the value
-            );
-          }
-        }
-      }
-    }
-
-    // Save the updated user document
-    await user.save();
 
     // Respond with a success message
     res.status(200).json({ success: true, message: "Item added successfully" });
@@ -334,52 +334,8 @@ app.post('/AddUsedItem', async (req, res) => {
   }
 });
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-app.post('/GetUsedItem', async (req, res) => {
-  try {
-    const { id } = req.body; // Get user ID from request body
-    const findUser = await UserModel.findOne({ _id: id }); // Find user by ID
-
-    if (!findUser) {
-      return res.status(400).json({ success: false, message: 'User does not exist' }); // Return error if user not found
-    }
-
-    // Assuming Used is an array or object property in findUser
-    const items = findUser.Used;
-
-    if (!items) { // Check if items exist and are not empty
-      return res.status(404).json({ success: false, message: 'No items found for this category' }); // Return error if no items found
-    }
-
-    // If items exist, return them
-    res.status(200).json({ success: true, items }); // Return success with items
-  } catch (err) {
-    res.status(500).json({ success: false, message: 'Internal server error', error: err.message }); // Return error with success: false
-  }
-});
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-app.post('/deleteUsedItem', async (req, res) => {
-  try {
-    const { id, topUrl, btmUrl } = req.body;
 
-    const user = await UserModel.findOne({ _id: id });
-    if (!user) {
-      return res.status(404).json({ success: false, message: "User not found" });
-    }
-
-    // Filter out the item in `Used` that matches topUrl and btmUrl
-    user.Used = user.Used.filter(item => !(item[0] === topUrl && item[1] === btmUrl));
-
-    // Save the updated document back to the database
-    await user.save();
-    res.status(200).json({ success: true, message: "Item deleted successfully" });
-  } catch (error) {
-    console.error("Error deleting item:", error);
-    res.status(500).json({ success: false, message: "Internal server error", error: error.message });
-  }
-});
-
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Start the server only after the DB connection is successful
 app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
 });
