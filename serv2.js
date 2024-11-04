@@ -268,7 +268,7 @@ app.post('/getCat', async (req, res) => {
     }
   });
   ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  app.post('/deleteUsedItem', async (req, res) => {
+  app.post('/ReUsedItem', async (req, res) => {
     try {
       const { id, topUrl, btmUrl } = req.body;
   

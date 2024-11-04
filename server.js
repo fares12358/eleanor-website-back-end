@@ -316,16 +316,74 @@ app.post('/deleteItem', async (req, res) => {
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 app.post('/AddUsedItem', async (req, res) => {
   try {
-    const { id, topItem, bottomItem } = req.body;
+    const { id, item, mode } = req.body;
     // Find the user by ID
     const user = await UserModel.findById(id);
     if (!user) {
       return res.status(404).json({ success: false, message: "User not found" });
     }
 
-    user.Used = user.Used || []; 
+    user.Used = user.Used || [];
 
+    if (mode) {
+      if (item.type === 'both') {
+        const { catIndex, itemIndex, type, url } = item;
+        // Locate the specified category and item within that category
+        const category = user.category[catIndex];
+        if (!category || !category.urls[itemIndex]) {
+          return res.status(404).json({ success: false, message: "Category or item not found" });
+        }
+        const selectedItem = category.urls[itemIndex];
 
+        // Check if the type and URL match
+        if (category.type === type && selectedItem.url === url) {
+          // Remove the item from the category's urls array
+          selectedItem.usedTime++;
+          category.urls.splice(itemIndex, 1);
+
+          // Add the item to the Used array
+          user.Used.push({
+            name: category.name,
+            type: category.type,
+            item: selectedItem,
+          });
+
+        } else {
+          return res.status(400).json({ success: false, message: "Type or URL mismatch" });
+        }
+      }
+
+    } else {
+      for (const singleItem of item) {
+        const { catIndex, itemIndex, type, url } = singleItem;
+
+        // Locate the specified category and item within that category
+        const category = user.category[catIndex];
+        if (!category || !category.urls[itemIndex]) {
+          return res.status(404).json({ success: false, message: "Category or item not found" });
+        }
+        const selectedItem = category.urls[itemIndex];
+
+        // Check if the type and URL match
+        if (category.type === type && selectedItem.url === url) {
+
+          selectedItem.usedTime++;
+          // Remove the item from the category's urls array
+          category.urls.splice(itemIndex, 1);
+
+          // Add the item to the Used array
+          user.Used.push({
+            name: category.name,
+            type: category.type,
+            item: selectedItem,
+          });
+        } else {
+          return res.status(400).json({ success: false, message: "Type or URL mismatch" });
+        }
+      }
+    }
+    // Save the updated user document
+    await user.save();
     // Respond with a success message
     res.status(200).json({ success: true, message: "Item added successfully" });
   } catch (error) {
@@ -333,6 +391,7 @@ app.post('/AddUsedItem', async (req, res) => {
     res.status(500).json({ success: false, message: "Internal server error", error: error.message });
   }
 });
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
