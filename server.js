@@ -391,8 +391,76 @@ app.post('/AddUsedItem', async (req, res) => {
     res.status(500).json({ success: false, message: "Internal server error", error: error.message });
   }
 });
-
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+app.post('/GetUsedItem', async (req, res) => {
+  try {
+    const { id } = req.body; // Get user ID from request body
+    const findUser = await UserModel.findOne({ _id: id }); // Find user by ID
+
+    if (!findUser) {
+      return res.status(400).json({ success: false, message: 'User does not exist' }); // Return error if user not found
+    }
+
+    // Assuming Used is an array or object property in findUser
+    const items = findUser.Used;
+
+    if (!items) { // Check if items exist and are not empty
+      return res.status(404).json({ success: false, message: 'No items found for this category' }); // Return error if no items found
+    }
+
+    // If items exist, return them
+    res.status(200).json({ success: true, items }); // Return success with items
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Internal server error', error: err.message }); // Return error with success: false
+  }
+});
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+app.post('/ReUsedItem', async (req, res) => {
+  try {
+    const { id, item, index } = req.body;
+
+    const user = await UserModel.findOne({ _id: id });
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+
+    // Check if the index is within the bounds of the Used array
+    if (index < 0 || index >= user.Used.length) {
+      return res.status(400).json({ success: false, message: "Invalid index" });
+    }
+
+    // Get the item at the specified index in Used array
+    const usedItem = user.Used[index];
+
+    // Verify if the item matches the one provided in the request body (by url)
+    if (usedItem.item.url !== item.item.url) {
+      return res.status(400).json({ success: false, message: "Item URL does not match" });
+    }
+
+    // Remove the item from the Used array
+    user.Used.splice(index, 1);
+
+    // Find the category to update by matching name and type
+    const category = user.category.find(cat => cat.name === item.name && cat.type === item.type);
+
+    if (category) {
+      // Add the item URL and dateAdded to the urls array in the category
+      category.urls.push(item.item);
+    } else {
+      return res.status(404).json({ success: false, message: "Matching category not found" });
+    }
+
+    // Save the updated user document
+    await user.save();
+
+    res.status(200).json({ success: true, message: "Item deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting item:", error);
+    res.status(500).json({ success: false, message: "Internal server error", error: error.message });
+  }
+});
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 app.listen(PORT, () => {
