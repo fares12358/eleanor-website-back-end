@@ -497,6 +497,45 @@ app.post('/GetAllItem', async (req, res) => {
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+app.post('/GetNotification', async (req, res) => {
+  try {
+
+    const { id } = req.body; // Get user ID from request body
+    const findUser = await UserModel.findOne({ _id: id }); // Find user by ID
+
+    if (!findUser) {
+      return res.status(400).json({ success: false, message: 'User does not exist' }); // Return error if user not found
+    }
+
+    const { category: Catitems, Used: UsedItems } = findUser;
+    const AllItems = JSON.parse(JSON.stringify(Catitems)); // Deep copy of category to avoid modifying original data
+
+    // Add each item from Used to the corresponding category item in AllItems
+    UsedItems.forEach((usedItem) => {
+      const { name, type, item } = usedItem;
+      const categoryItem = AllItems.find((catItem) => catItem.name === name && catItem.type === type);
+
+      if (categoryItem) {
+        // Add the used item to the urls array in the corresponding category item
+        categoryItem.urls.push(item);
+      }
+    });
+
+    if (!AllItems || AllItems.length === 0) { // Check if items exist and are not empty
+      return res.status(404).json({ success: false, message: 'No items found for this category' }); // Return error if no items found
+    }
+
+    // If items exist, return them
+    res.status(200).json({ success: true, items: AllItems }); // Return success with items
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Internal server error', error: err.message }); // Return error with success: false
+  }
+});
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+
 app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
 });
