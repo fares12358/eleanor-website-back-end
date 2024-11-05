@@ -533,7 +533,125 @@ app.post('/GetNotification', async (req, res) => {
 });
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+app.post('/deleteItemFromNot', async (req, res) => {
+  try {
+    const { id, catName, item } = req.body;
+    const { url } = item;
 
+    // Find the user by ID
+    const findUser = await UserModel.findById(id);
+
+    if (!findUser) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    // Flag to track if the item was found and deleted
+    let itemDeleted = false;
+
+    // Iterate through the 'category' field
+    findUser.category.forEach(category => {
+      if (category.name === catName) {
+        // Find the index of the item with matching URL
+        const urlIndex = category.urls.findIndex(urlObj => urlObj.url === url);
+        
+        if (urlIndex !== -1) {
+          // Remove the item from the 'urls' array
+          category.urls.splice(urlIndex, 1);
+          itemDeleted = true;
+        }
+      }
+    });
+
+    // If not found in 'category', check 'Used' field
+    if (!itemDeleted) {
+      const usedIndex = findUser.Used.findIndex(usedItem => 
+        usedItem.name === catName && usedItem.item.url === url
+      );
+
+      if (usedIndex !== -1) {
+        // Remove the item from the 'Used' array
+        findUser.Used.splice(usedIndex, 1);
+        itemDeleted = true;
+      }
+    }
+
+    if (!itemDeleted) {
+      return res.status(404).json({ success: false, message: "Item not found in category or Used" });
+    }
+
+    // Save updated user document
+    await findUser.save();
+
+    // Extract the file name from the URL
+    const fileName = url.split('/').pop().split('?')[0];
+    const filePath = `images/${fileName}`;
+
+    // Delete the file from Firebase Storage
+    const file = bucket.file(filePath);
+    await file.delete();
+
+    res.status(200).json({
+      success: true,
+      message: "Item deleted successfully from both MongoDB and Firebase Storage"
+    });
+  } catch (error) {
+    console.error("Error deleting item:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error.message
+    });
+  }
+});
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+app.post('/ReUsedItemInNot', async (req, res) => {
+  try {
+    const { id, catName, item } = req.body;
+
+    // Find the user by ID
+    const user = await UserModel.findOne({ _id: id });
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    const today = new Date();
+
+    // Check in `category`
+    let itemFound = false;
+    user.category.forEach((category) => {
+      if (category.name === catName) {
+        category.urls.forEach((urlItem) => {
+          if (urlItem.url === item.url) {
+            urlItem.dateAdded = today;
+            itemFound = true;
+          }
+        });
+      }
+    });
+
+    // Check in `Used` if not found in `category`
+    if (!itemFound) {
+      user.Used.forEach((usedItem) => {
+        if (usedItem.name === catName && usedItem.item.url === item.url) {
+          usedItem.item.dateAdded = today;
+          itemFound = true;
+        }
+      });
+    }
+
+    if (itemFound) {
+      await user.save();
+      res.status(200).json({ success: true, message: "Item date updated successfully" });
+    } else {
+      res.status(404).json({ success: false, message: "Item not found in category or Used" });
+    }
+  } catch (error) {
+    console.error("Error updating item:", error);
+    res.status(500).json({ success: false, message: "Internal server error", error: error.message });
+  }
+});
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
 app.listen(PORT, () => {
