@@ -155,6 +155,59 @@ app.post('/getCat', async (req, res) => {
   }
 });
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+app.post('/DeleteCat', async (req, res) => {
+  try {
+    const { id,catName } = req.body; // Get user ID from request body
+    const findUser = await UserModel.findOne({ _id: id }); // Find user by ID
+
+    if (!findUser) {
+      return res.status(400).json({ success: false, message: 'User does not exist' }); // Return error if user not found
+    }
+
+    // Find the category to delete
+    const categoryIndex = findUser.category.findIndex(cat => cat.name === catName);
+    if (categoryIndex === -1) {
+      return res.status(404).json({ success: false, message: 'Category not found' });
+    }
+
+     // Delete URLs from Firebase and MongoDB
+     const urlsToDelete = findUser.category[categoryIndex].urls.map(urlObj => urlObj.url);
+     await Promise.all(urlsToDelete.map(async (url) => {
+       try {
+         const fileName = url.split('/').pop(); // Get the file name from the URL
+         await admin.storage().bucket().file(`images/${fileName}`).delete(); // Delete from Firebase
+       } catch (err) {
+         console.error(`Failed to delete URL ${url} from Firebase: ${err.message}`);
+       }
+     }));
+
+
+    // Remove the category from MongoDB
+    findUser.category.splice(categoryIndex, 1);
+
+    // Find and delete the item in 'Used' with name === catName
+    const usedIndex = findUser.Used.findIndex(item => item.name === catName);
+    if (usedIndex !== -1) {
+      const usedUrl = findUser.Used[usedIndex].item.url;
+      try {
+        const usedFileName = usedUrl.split('/').pop();
+        await admin.storage().bucket().file(`images/${usedFileName}`).delete(); // Delete from Firebase
+      } catch (err) {
+        console.error(`Failed to delete URL ${usedUrl} from Firebase: ${err.message}`);
+      }
+      findUser.Used.splice(usedIndex, 1); // Remove the item from 'Used'
+    }
+
+    // Save the updated user document
+    await findUser.save();
+
+
+    res.status(200).json({ success: true, message: 'Category and URLs deleted successfully' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Internal server error', error: err.message });
+  }
+});
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 app.post('/getItems', async (req, res) => {
   try {
     const { id, CatRef } = req.body; // Get user ID and category key from request body
