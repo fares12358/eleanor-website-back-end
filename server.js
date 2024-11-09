@@ -376,6 +376,8 @@ app.post('/AddUsedItem', async (req, res) => {
 
     user.Used = user.Used || [];
 
+    const currentDate = new Date();
+
     if (mode) {
       if (item.type === 'both') {
         const { catIndex, itemIndex, type, url } = item;
@@ -397,6 +399,7 @@ app.post('/AddUsedItem', async (req, res) => {
             name: category.name,
             type: category.type,
             item: selectedItem,
+            usedDate:currentDate,
           });
 
         } else {
@@ -427,6 +430,7 @@ app.post('/AddUsedItem', async (req, res) => {
             name: category.name,
             type: category.type,
             item: selectedItem,
+            usedDate:currentDate,
           });
         } else {
           return res.status(400).json({ success: false, message: "Type or URL mismatch" });

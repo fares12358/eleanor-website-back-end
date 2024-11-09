@@ -22,7 +22,8 @@ const usedItemSchema = new Schema({
   item: {                                       // Item details
     url: { type: String, required: true },      // Item URL
     dateAdded: { type: Date, default: Date.now }, // Date item was added
-    usedTime: { type: Number, default: 0 }      // Number of times item was used
+    usedTime: { type: Number, default: 0 } ,
+    usedDate:{ type: Date, default: Date.now }   // Number of times item was used
   }
 }, { _id: false }); // Disable automatic _id for each used item object
 
